@@ -17,7 +17,25 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+
 public class RateService {
+    private enum rateFile {
+        USD("USD.csv"),
+        TRY("TRY.csv"),
+        EUR("EUR.csv"),
+        AMD("AMD.csv"),
+        BGN("BGN.csv");
+        private final String nameFile;
+
+        rateFile(String nameFile) {
+            this.nameFile = nameFile;
+        }
+
+        public String getFileName() {
+            return nameFile;
+        }
+    }
+
     /**
      * Чтение курса валют из csv-файла
      *
@@ -25,21 +43,25 @@ public class RateService {
      * @return списов валют (объектов Rate), полученных из csv-файла
      */
     //сделать чтение из ресурсов
-    public List<Rate> readFromCsvFail(String fileName) throws IOException {
+    public List<Rate> readFromCsvFail(String fileName) {
         List<Rate> resultList = new ArrayList<>();
         String row;
 
         InputStream in = getClass().getClassLoader().getResourceAsStream(fileName);
         BufferedReader csvReader = new BufferedReader(new InputStreamReader(in));
-        while ((row = csvReader.readLine()) != null) {
-            String[] tokensCsv = row.split(";");
-            if (!tokensCsv[0].equals("nominal")) {
-                Rate rate = new Rate(Integer.parseInt(tokensCsv[0])
-                        , LocalDate.parse(tokensCsv[1], DateTimeFormatter.ofPattern("d.MM.yyyy"))
-                        , new BigDecimal(tokensCsv[2].replace(',', '.'))
-                        , tokensCsv[3]);
-                resultList.add(rate);
+        try {
+            while ((row = csvReader.readLine()) != null) {
+                String[] tokensCsv = row.split(";");
+                if (!tokensCsv[0].equals("nominal")) {
+                    Rate rate = new Rate(Integer.parseInt(tokensCsv[0])
+                            , LocalDate.parse(tokensCsv[1], DateTimeFormatter.ofPattern("d.MM.yyyy"))
+                            , new BigDecimal(tokensCsv[2].replace(',', '.'))
+                            , tokensCsv[3]);
+                    resultList.add(rate);
+                }
             }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
         resultList = resultList.stream()
                 .sorted((o1, o2) -> o1.getDayDate().compareTo(o2.getDayDate()))
@@ -47,56 +69,61 @@ public class RateService {
         return resultList;
     }
 
-    private List<Rate> ExchangeRate(List<Rate> historyRate, int countDays) {
-        int CountAlg = 7;
-        LocalDate nowDate = LocalDate.now();
-        LocalDate currentDate = nowDate.plusDays(countDays);
-        int cntAddRate, j;
-        for (cntAddRate = 1; cntAddRate <= countDays; cntAddRate++) {
-            BigDecimal cursNewRate = new BigDecimal("0"); // Прогнозируемый курс (пересчитывается для каждой даты - переименовано с "curs")
-            int currentRate = historyRate.size() - CountAlg;
-            while (currentRate < historyRate.size()) {
-                cursNewRate = cursNewRate.add(historyRate.get(currentRate).getCurs());
-                currentRate++;
-            }
-            cursNewRate = cursNewRate.divide(BigDecimal.valueOf(CountAlg), 4, RoundingMode.HALF_UP);
-
-            historyRate.add(new Rate(historyRate.get(1).getNominal()
-                    , nowDate.plusDays(cntAddRate)
-                    , cursNewRate
-                    , historyRate.get(1).getNameRate()));
+    /**
+     * Прогнозирование курса валют - вы
+     * @param historyRate списов истории валют (объектов Rate)
+     * @param date дата прогнозирования (может равняться null, если countDays != 0 )
+     * @param countDays кол-во дней для прогноза (может равняться 0, если date != null )
+     * @param algoritm алгоритм, по которому осуществляется прогноз
+     * @return Прогноз валюты за указанный период
+     */
+    private List<Rate> ExchangeRate(List<Rate> historyRate, String date, int countDays, String algoritm) {
+        LocalDate forecastDate = null;
+        Rate newRate;
+        List<Rate> resultRates = null;
+        CalculationAlgorithms calculationAlgorithms = new CalculationAlgorithms();
+        if (date != null) {
+            DecimalFormat decimalFormat = new DecimalFormat("#.##");
+            forecastDate = LocalDate.parse(date, DateTimeFormatter.ofPattern("d.MM.yyyy"));
+        } else{
+            forecastDate = LocalDate.now().plusDays(1);
         }
 
-        return historyRate;
-    }
+        for (int countAddRate = 1; countAddRate < countDays + 1; countAddRate++) {
 
+            if (algoritm.equals("LastYear")) {
+                newRate = calculationAlgorithms.algLastYear(historyRate, forecastDate);
+            } else if (algoritm.equals("Mystical")) {
+                newRate = calculationAlgorithms.algMystical(historyRate, forecastDate);
+            } else {
+                newRate = calculationAlgorithms.algLinearRegression(historyRate, forecastDate);
+            }
+            resultRates.add(newRate);
+        }
+
+        return resultRates;
+    }
     /**
-     * Прогнозирование курса валют на указанный период
-     *
-     * @param changeFile индекс файла со списком валют, известных на текущий момент
-     * @param countDays  кол-во дней для прогноза
+     * Вывод данных курса за указанный период для одного вида валюты
+     * @param currency код валюты для прогнозировния
+     * @param date дата прогнозирования (может равняться null, если countDays != 0 )
+     * @param countDays кол-во дней для прогноза (может равняться 0, если date != null )
+     * @param algoritm алгоритм, по которому осуществляется прогноз
      */
-    public void ExchangeRateForecast(String changeFile, int countDays) throws IOException {
-        List<Rate> historyRate = readFromCsvFail(changeFile);
+    public void ExchangeRateForecast(String currency, String date, int countDays, String algoritm) {
+
+        List<Rate> historyRate = readFromCsvFail(rateFile.valueOf(currency).getFileName());
         DecimalFormat decimalFormat = new DecimalFormat("#.##");
 
-        historyRate = ExchangeRate(historyRate, countDays);
+        List<Rate> resultRates = ExchangeRate(historyRate, date, countDays, algoritm);
 
         Locale localeRu = new Locale("ru", "RU");
-        String nameRate = historyRate.get(1).getNameRate();
-        String textHeader = "";
-        if (countDays == 1) {
-            textHeader = String.format("Курс %s на завтра", nameRate);
-        } else {
-            textHeader = String.format("Курс %s на неделю", nameRate);
-        }
-        System.out.println(textHeader);
 
-        for (int currentRate = historyRate.size() - countDays; currentRate < historyRate.size(); currentRate++) {
-            LocalDate curDate = historyRate.get(currentRate).getDayDate();
+        for (Rate rate : resultRates) {
+            LocalDate curDate = rate.getDayDate();
             String dayOfWeek = curDate.getDayOfWeek().getDisplayName(TextStyle.SHORT, localeRu);
             String currentDate = curDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy", new Locale("ru")));
-            String currentCurs = decimalFormat.format(historyRate.get(currentRate).getCurs());
+            String currentCurs = decimalFormat.format(rate.getCurs().divide(BigDecimal.valueOf(rate.getNominal()), 4, RoundingMode.HALF_UP));
             String newRow = String.format("\t%s %s - %s", dayOfWeek, currentDate, currentCurs);
             System.out.println(newRow);
         }
