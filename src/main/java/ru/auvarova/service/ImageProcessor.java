@@ -40,7 +40,12 @@ public class ImageProcessor {
         }
     }
 
-    private static void printLegend(List<String> currencies, Graphics graphics) {
+    /**
+     * Вывод легенды для валют
+     * @param currencies валюта
+     * @param graphics Объект для вывода легенды
+     */
+    private static void printLegend(String currencies[], Graphics graphics) {
         int x = 800, y = 40;
         for (String currency : currencies) {
             graphics.setColor(Colors.valueOf(currency).getColor());
@@ -50,6 +55,12 @@ public class ImageProcessor {
         }
     }
 
+    /**
+     * Вывод осей графика
+     * @param image изображение на которое произвоится вывод
+     * @param countDays кол-вл дней на графике
+     * @return объект рисования
+     */
     private static Graphics printBase(BufferedImage image, int countDays) {
         Graphics graphics = image.getGraphics();
         Graphics2D g2d = image.createGraphics();
@@ -107,33 +118,50 @@ public class ImageProcessor {
         return graphics;
     }
 
-    private static void PrintCurrencyLine(String currency, List<Rate> rates, Graphics graphics) {
+    /**
+     * Вывод кривой (по значением курса валюты)
+     * @param currency валюта
+     * @param rates лист значений курсов
+     * @param graphics объект рисования
+     */
+    private static void PrintCurrencyLine(String currency, List<BigDecimal> rates, Graphics graphics) {
         graphics.setColor(Colors.valueOf(currency).getColor());
         int dx = (MAX_X - OX) / rates.size();
-        int dy = 10;
-        int y = OY - rates.get(0).getCurs().multiply(BigDecimal.valueOf(10)).toBigInteger().intValueExact();
+        int dy = 3;
+        int y = OY- rates.get(0).multiply(BigDecimal.valueOf(dy)).toBigInteger().intValueExact();
         int x = OX;
-        int newX = x,newY;
-        for (Rate rate : rates) {
-            newY = OY - rate.getCurs().multiply(BigDecimal.valueOf(10)).toBigInteger().intValueExact();
-            graphics.drawLine(x,y,newX,newY);
-            newX = x+dx;
+        int newX, newY;
+        for (BigDecimal rate : rates) {
+            newX = x + dx;
+            newY = OY - rate.multiply(BigDecimal.valueOf(dy)).toBigInteger().intValueExact();
+            graphics.drawLine(x, y, newX, newY);
+            x = newX;
+            y = newY;
+
         }
     }
 
     /**
      * Программа для построения графика
-     * @param countDays
+     * @param rates валюты для выводв на графике
+     * @param countDays кол-во дней (период на графике)
+     * @param algoritm алгоритм по которому прогнозируется курс валюты
+     * @param nameFile имя файла для вывода графика
      */
-    public static void Print(int countDays) {
+    public static void printGraph(String rates[], int countDays, String algoritm, String nameFile) {
+        List<BigDecimal> rateValues;
+        RateService rateService = new RateService();
         BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
         Graphics g = printBase(image, countDays);
+        printLegend(rates, g);
+        for (String rate : rates) {
+            rateValues = rateService.ExchangeRateForecastGraph(rate, countDays, algoritm);
+            PrintCurrencyLine(rate, rateValues, g);
 
-        //printLegend(list, g);
-        //PrintCurrencyLine(list, g);
+        }
         try {
             // Созраняем результат в новый файл
-            File output = new File("График.jpg");
+            File output = new File(nameFile);
             ImageIO.write(image, "jpg", output);
 
         } catch (IOException e) {

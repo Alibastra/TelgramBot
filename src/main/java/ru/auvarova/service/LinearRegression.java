@@ -3,7 +3,11 @@ package ru.auvarova.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
+/**
+ * Заимствованный класс алгоритма из интернета
+ */
 public class LinearRegression {
+
     private final BigDecimal intercept, slope;
 
     /**
@@ -18,10 +22,13 @@ public class LinearRegression {
             throw new IllegalArgumentException("array lengths are not equal");
         }
         int n = x.length;
-
+        System.out.println(x.length);
+        System.out.println(y.length);
         // first pass
-        BigDecimal sumx = BigDecimal.valueOf(0), sumy = BigDecimal.valueOf(0);
+        BigDecimal sumx = BigDecimal.valueOf(0);
+        BigDecimal sumy = BigDecimal.valueOf(0);
         for (int i = 0; i < n; i++) {
+            System.out.println(x[i]);
             sumx = sumx.add(x[i]);
             sumy = sumy.add(y[i]);
         }

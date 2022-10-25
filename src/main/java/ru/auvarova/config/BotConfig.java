@@ -1,4 +1,4 @@
-package ru.auvarova.model.config;
+package ru.auvarova.config;
 
 import lombok.Data;
 @Data

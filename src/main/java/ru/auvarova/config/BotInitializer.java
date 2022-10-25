@@ -1,4 +1,4 @@
-package ru.auvarova.model.config;
+package ru.auvarova.config;
 
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
